@@ -66,6 +66,7 @@ class KittiDataset(Custom3DDataset):
                  filter_empty_gt=True,
                  test_mode=False,
                  pcd_limit_range=[0, -40, -3, 70.4, 40, 0.0],
+                 img_info_prototype='bevdet',
                  **kwargs):
         super().__init__(
             data_root=data_root,
@@ -83,6 +84,8 @@ class KittiDataset(Custom3DDataset):
         assert self.modality is not None
         self.pcd_limit_range = pcd_limit_range
         self.pts_prefix = pts_prefix
+        
+        self.img_info_prototype = img_info_prototype
 
     def _get_pts_filename(self, idx):
         """Get point cloud filename according to the given index.
@@ -134,9 +137,12 @@ class KittiDataset(Custom3DDataset):
             img_info=dict(filename=img_filename),
             lidar2img=lidar2img)
 
-        if not self.test_mode:
+        if not self.test_mode or self.img_info_prototype == 'bevdet':
             annos = self.get_ann_info(index)
             input_dict['ann_info'] = annos
+            
+        if self.img_info_prototype == 'bevdet':
+            input_dict.update(dict(curr=info))
 
         return input_dict
 
@@ -191,8 +197,9 @@ class KittiDataset(Custom3DDataset):
         gt_names = annos['name']
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]],
                                       axis=1).astype(np.float32)
-
+        # breakpoint()
         # convert gt_bboxes_3d to velodyne coordinates
+        # gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d)
         gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(
             self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
         gt_bboxes = annos['bbox']
@@ -217,7 +224,8 @@ class KittiDataset(Custom3DDataset):
             labels=gt_labels,
             gt_names=gt_names,
             plane=plane_lidar,
-            difficulty=difficulty)
+            difficulty=difficulty,
+            calib=info['calib'])
         return anns_results
 
     def drop_arrays_by_name(self, gt_names, used_classes):
@@ -355,16 +363,22 @@ class KittiDataset(Custom3DDataset):
         Returns:
             dict[str, float]: Results of each evaluation metric.
         """
+        # # breakpoint()
+        # if show or out_dir:
+        #     self.show(results, out_dir, show=show, pipeline=pipeline)
+        
         result_files, tmp_dir = self.format_results(results, pklfile_prefix)
         from mmdet3d.core.evaluation import kitti_eval
         gt_annos = [info['annos'] for info in self.data_infos]
 
+        # breakpoint()
         if isinstance(result_files, dict):
             ap_dict = dict()
             for name, result_files_ in result_files.items():
                 eval_types = ['bbox', 'bev', '3d']
                 if 'img' in name:
                     eval_types = ['bbox']
+                # import ipdb; ipdb.set_trace()
                 ap_result_str, ap_dict_ = kitti_eval(
                     gt_annos,
                     result_files_,
@@ -664,7 +678,11 @@ class KittiDataset(Custom3DDataset):
         P2 = box_preds.tensor.new_tensor(P2)
 
         box_preds_camera = box_preds.convert_to(Box3DMode.CAM, rect @ Trv2c)
-
+        # box_preds_camera = box_preds
+        # box_preds = box_preds.convert_to(Box3DMode.LIDAR, np.linalg.inv(rect @ Trv2c))
+        # TODO: check coordinate
+        # box_preds_camera = box_preds
+        
         box_corners = box_preds_camera.corners
         box_corners_in_image = points_cam2img(box_corners, P2)
         # box_corners_in_image: [N, 8, 2]
@@ -740,7 +758,10 @@ class KittiDataset(Custom3DDataset):
             file_name = osp.split(pts_path)[-1].split('.')[0]
             points, img_metas, img = self._extract_data(
                 i, pipeline, ['points', 'img_metas', 'img'])
-            points = points.numpy()
+            if isinstance(points, np.ndarray):
+                points = points.numpy()
+            else:
+                points = np.zeros((1, 7))
             # for now we convert points into depth mode
             points = Coord3DMode.convert_point(points, Coord3DMode.LIDAR,
                                                Coord3DMode.DEPTH)
@@ -750,14 +771,17 @@ class KittiDataset(Custom3DDataset):
             pred_bboxes = result['boxes_3d'].tensor.numpy()
             show_pred_bboxes = Box3DMode.convert(pred_bboxes, Box3DMode.LIDAR,
                                                  Box3DMode.DEPTH)
-            show_result(points, show_gt_bboxes, show_pred_bboxes, out_dir,
-                        file_name, show)
+            points = None
+            # show_result(points, show_gt_bboxes, show_pred_bboxes, out_dir,
+            #             file_name, show)
 
             # multi-modality visualization
             if self.modality['use_camera'] and 'lidar2img' in img_metas.keys():
-                img = img.numpy()
+                from PIL import Image
+                img = Image.open('data/kitti/'+self.data_infos[i]['image']['image_path'])
+                img = np.array(img)[:, :, ::-1]
                 # need to transpose channel to first dim
-                img = img.transpose(1, 2, 0)
+                # img = img.transpose(1, 2, 0)
                 show_pred_bboxes = LiDARInstance3DBoxes(
                     pred_bboxes, origin=(0.5, 0.5, 0))
                 show_gt_bboxes = LiDARInstance3DBoxes(

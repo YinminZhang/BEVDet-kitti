@@ -38,6 +38,7 @@ def parse_args():
         description='MMDet test (and eval) a model')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
+    parser.add_argument('results', help='results file')
     parser.add_argument('--out', help='output result file in pickle format')
     parser.add_argument(
         '--fuse-conv-bn',
@@ -178,7 +179,7 @@ def main():
         init_dist(args.launcher, **cfg.dist_params)
 
     test_dataloader_default_args = dict(
-        samples_per_gpu=80, workers_per_gpu=4, dist=distributed, shuffle=False)
+        samples_per_gpu=32, workers_per_gpu=4, dist=distributed, shuffle=False)
 
     # in case the test dataset is concatenated
     if isinstance(cfg.data.test, dict):
@@ -232,17 +233,17 @@ def main():
         # segmentation dataset has `PALETTE` attribute
         model.PALETTE = dataset.PALETTE
 
-    if not distributed:
-        model = MMDataParallel(model, device_ids=cfg.gpu_ids)
-        outputs = single_gpu_test(model, data_loader, args.show, args.show_dir)
-    else:
-        model = MMDistributedDataParallel(
-            model.cuda(),
-            device_ids=[torch.cuda.current_device()],
-            broadcast_buffers=False)
-        outputs = multi_gpu_test(model, data_loader, args.tmpdir,
-                                 args.gpu_collect)
-
+    # if not distributed:
+    #     model = MMDataParallel(model, device_ids=cfg.gpu_ids)
+    #     outputs = single_gpu_test(model, data_loader, args.show, args.show_dir)
+    # else:
+    #     model = MMDistributedDataParallel(
+    #         model.cuda(),
+    #         device_ids=[torch.cuda.current_device()],
+    #         broadcast_buffers=False)
+    #     outputs = multi_gpu_test(model, data_loader, args.tmpdir,
+    #                              args.gpu_collect)
+    outputs = mmcv.load(args.results)
     rank, _ = get_dist_info()
     if rank == 0:
         if args.out:
@@ -259,6 +260,8 @@ def main():
                     'rule'
             ]:
                 eval_kwargs.pop(key, None)
+            eval_kwargs.update(dict(show=True, out_dir='vis_img',
+                                    pipeline=cfg.data.val.pipeline))
             eval_kwargs.update(dict(metric=args.eval, **kwargs))
             print(dataset.evaluate(outputs, **eval_kwargs))
 

@@ -462,14 +462,18 @@ class MVXTwoStageDetector(Base3DDetector):
             result (dict): Prediction results.
             out_dir (str): Output directory of visualization result.
         """
+        # breakpoint()
         for batch_id in range(len(result)):
-            if isinstance(data['points'][0], DC):
-                points = data['points'][0]._data[0][batch_id].numpy()
-            elif mmcv.is_list_of(data['points'][0], torch.Tensor):
-                points = data['points'][0][batch_id]
+            if data.get('points'):
+                if isinstance(data['points'][0], DC):
+                    points = data['points'][0]._data[0][batch_id].numpy()
+                elif mmcv.is_list_of(data['points'][0], torch.Tensor):
+                    points = data['points'][0][batch_id]
+                else:
+                    ValueError(f"Unsupported data type {type(data['points'][0])} "
+                            f'for visualization!')
             else:
-                ValueError(f"Unsupported data type {type(data['points'][0])} "
-                           f'for visualization!')
+                points = torch.zeros(1, 3).numpy()
             if isinstance(data['img_metas'][0], DC):
                 pts_filename = data['img_metas'][0]._data[0][batch_id][
                     'pts_filename']

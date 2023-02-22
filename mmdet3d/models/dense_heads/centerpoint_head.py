@@ -614,16 +614,28 @@ class CenterHead(BaseModule):
                 avg_factor=cls_avg_factor)
             target_box = anno_boxes[task_id]
             # reconstruct the anno_box from multiple reg heads
-            preds_dict[0]['anno_box'] = torch.cat(
-                (
-                    preds_dict[0]['reg'],
-                    preds_dict[0]['height'],
-                    preds_dict[0]['dim'],
-                    preds_dict[0]['rot'],
-                    preds_dict[0]['vel'],
-                ),
-                dim=1,
-            )
+            if preds_dict[0].get('vel'):
+                preds_dict[0]['anno_box'] = torch.cat(
+                    (
+                        preds_dict[0]['reg'],
+                        preds_dict[0]['height'],
+                        preds_dict[0]['dim'],
+                        preds_dict[0]['rot'],
+                        preds_dict[0]['vel'],
+                    ),
+                    dim=1,
+                )
+            else:
+                preds_dict[0]['anno_box'] = torch.cat(
+                    (
+                        preds_dict[0]['reg'],
+                        preds_dict[0]['height'],
+                        preds_dict[0]['dim'],
+                        preds_dict[0]['rot'],
+                        # preds_dict[0]['vel'],
+                    ),
+                    dim=1,
+                )
 
             # Regression loss for dimension, offset, height, rotation
             num = masks[task_id].float().sum()
@@ -639,26 +651,48 @@ class CenterHead(BaseModule):
             code_weights = self.train_cfg['code_weights']
             bbox_weights = mask * mask.new_tensor(code_weights)
             if self.task_specific:
-                name_list = ['xy', 'z', 'whl', 'yaw', 'vel']
-                clip_index = [0, 2, 3, 6, 8, 10]
-                for reg_task_id in range(len(name_list)):
-                    pred_tmp = pred[
-                        ...,
-                        clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
-                    target_box_tmp = target_box[
-                        ...,
-                        clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
-                    bbox_weights_tmp = bbox_weights[
-                        ...,
-                        clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
-                    loss_bbox_tmp = self.loss_bbox(
-                        pred_tmp,
-                        target_box_tmp,
-                        bbox_weights_tmp,
-                        avg_factor=(num + 1e-4))
-                    loss_dict[f'task{task_id}.loss_%s' %
-                              (name_list[reg_task_id])] = loss_bbox_tmp
-                loss_dict[f'task{task_id}.loss_heatmap'] = loss_heatmap
+                if preds_dict[0].get('vel'):
+                    name_list = ['xy', 'z', 'whl', 'yaw', 'vel']
+                    clip_index = [0, 2, 3, 6, 8, 10]
+                    for reg_task_id in range(len(name_list)):
+                        pred_tmp = pred[
+                            ...,
+                            clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
+                        target_box_tmp = target_box[
+                            ...,
+                            clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
+                        bbox_weights_tmp = bbox_weights[
+                            ...,
+                            clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
+                        loss_bbox_tmp = self.loss_bbox(
+                            pred_tmp,
+                            target_box_tmp,
+                            bbox_weights_tmp,
+                            avg_factor=(num + 1e-4))
+                        loss_dict[f'task{task_id}.loss_%s' %
+                                    (name_list[reg_task_id])] = loss_bbox_tmp
+                    loss_dict[f'task{task_id}.loss_heatmap'] = loss_heatmap
+                else:
+                    name_list = ['xy', 'z', 'whl', 'yaw']
+                    clip_index = [0, 2, 3, 6, 8]
+                    for reg_task_id in range(len(name_list)):
+                        pred_tmp = pred[
+                            ...,
+                            clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
+                        target_box_tmp = target_box[
+                            ...,
+                            clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
+                        bbox_weights_tmp = bbox_weights[
+                            ...,
+                            clip_index[reg_task_id]:clip_index[reg_task_id + 1]]
+                        loss_bbox_tmp = self.loss_bbox(
+                            pred_tmp,
+                            target_box_tmp,
+                            bbox_weights_tmp,
+                            avg_factor=(num + 1e-4))
+                        loss_dict[f'task{task_id}.loss_%s' %
+                                    (name_list[reg_task_id])] = loss_bbox_tmp
+                    loss_dict[f'task{task_id}.loss_heatmap'] = loss_heatmap
             else:
                 loss_bbox = self.loss_bbox(
                     pred, target_box, bbox_weights, avg_factor=num)
@@ -835,7 +869,6 @@ class CenterHead(BaseModule):
                 if self.test_cfg['score_threshold'] > 0.0:
                     box_preds = box_preds[top_scores_keep]
                     top_labels = top_labels[top_scores_keep]
-
                 boxes_for_nms = xywhr2xyxyr(img_metas[i]['box_type_3d'](
                     box_preds[:, :], self.bbox_coder.code_size).bev)
                 # the nms in 3d detection just remove overlap boxes.
