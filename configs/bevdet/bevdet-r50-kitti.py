@@ -6,7 +6,7 @@ _base_ = ['../_base_/datasets/nus-3d.py', '../_base_/default_runtime.py']
 # cloud range accordingly
 point_cloud_range = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 # For nuScenes we usually do 10-class detection
-class_names = ['Car']
+class_names = ['car']
 
 data_config = {
     'cams': [
@@ -76,10 +76,10 @@ model = dict(
         type='CenterHead',
         in_channels=256,
         tasks=[
-            dict(num_class=1, class_names=['Car']),
+            dict(num_class=1, class_names=['car']),
             # dict(num_class=1, class_names=['Pedestrian']),
-            # dict(num_class=1, class_names=['Cyclist']), 
-            
+            # dict(num_class=1, class_names=['Cyclist']),
+
             # dict(num_class=1, class_names=['car']),
             # dict(num_class=2, class_names=['truck', 'construction_vehicle']),
             # dict(num_class=2, class_names=['bus', 'trailer']),
@@ -191,7 +191,7 @@ test_pipeline = [
                 class_names=class_names,
                 with_label=False),
             dict(type='Collect3D', keys=[
-                # 'points', 
+                # 'points',
                 'img_inputs'])
         ])
 ]
@@ -211,6 +211,8 @@ share_data_config = dict(
 )
 
 test_data_config = dict(
+    split='training',
+    samples_per_gpu=8,
     pipeline=test_pipeline,
     ann_file=data_root + 'kitti_infos_val.pkl')
 
@@ -218,12 +220,13 @@ data = dict(
     samples_per_gpu=8,
     workers_per_gpu=4,
     train=dict(
+        split='training',
         data_root=data_root,
         ann_file=data_root + 'kitti_infos_train.pkl',
         pipeline=train_pipeline,
         classes=class_names,
         test_mode=False,
-        use_valid_flag=True,
+        # use_valid_flag=True,
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR'),
@@ -254,3 +257,8 @@ custom_hooks = [
 
 # unstable
 # fp16 = dict(loss_scale='dynamic')
+evaluation = dict(
+    interval=1,
+    # show=True
+    )
+checkpoint_config = dict(interval=10)
