@@ -66,6 +66,7 @@ class KittiDataset(Custom3DDataset):
                  filter_empty_gt=True,
                  test_mode=False,
                  pcd_limit_range=[0, -40, -3, 70.4, 40, 0.0],
+                 img_info_prototype='bevdet',
                  **kwargs):
         super().__init__(
             data_root=data_root,
@@ -83,6 +84,8 @@ class KittiDataset(Custom3DDataset):
         assert self.modality is not None
         self.pcd_limit_range = pcd_limit_range
         self.pts_prefix = pts_prefix
+        
+        self.img_info_prototype = img_info_prototype
 
     def _get_pts_filename(self, idx):
         """Get point cloud filename according to the given index.
@@ -137,6 +140,19 @@ class KittiDataset(Custom3DDataset):
         if not self.test_mode:
             annos = self.get_ann_info(index)
             input_dict['ann_info'] = annos
+        
+        if self.img_info_prototype=='bevdet':
+            camera2lidar = np.linalg.inv(rect @ Trv2c)
+            input_dict['img_info']['CAM_FRONT']=dict(data_path = img_filename,
+            cam_intrinsic = P2,
+            sensor2lidar_rotation= camera2lidar[:3,:3],
+            sensor2lidar_translation= camera2lidar[:3,3])
+        if not self.test_mode:
+            bbox = input_dict['ann_info']['gt_bboxes_3d'].tensor
+            bbox = torch.cat([bbox,torch.zeros((bbox.shape[0],2))],dim=-1)
+            input_dict['ann_info']['gt_bboxes_3d'] = \
+                LiDARInstance3DBoxes(tensor=bbox,box_dim=bbox.shape[-1],
+                with_yaw=input_dict['ann_info']['gt_bboxes_3d'].with_yaw)
 
         return input_dict
 

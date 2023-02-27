@@ -129,6 +129,13 @@ class LSSViewTransformer(BaseModule):
         # cam_to_ego
         points = torch.cat(
             (points[..., :2, :] * points[..., 2:3, :], points[..., 2:3, :]), 5)
+        
+        # For kitti
+        if cam2imgs.shape[3] == 4:
+            shift = cam2imgs[:,:,:3,3]
+            points = points - shift.view(B,N,1,1,1,3,1)
+            cam2imgs = cam2imgs[:,:,:3,:3]
+        
         combine = rots.matmul(torch.inverse(cam2imgs))
         points = combine.view(B, N, 1, 1, 1, 3, 3).matmul(points).squeeze(-1)
         points += trans.view(B, N, 1, 1, 1, 3)
