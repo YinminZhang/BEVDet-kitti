@@ -147,13 +147,18 @@ class KittiDataset(Custom3DDataset):
             cam_intrinsic = P2,
             sensor2lidar_rotation= camera2lidar[:3,:3],
             sensor2lidar_translation= camera2lidar[:3,3])
-        if not self.test_mode:
+        # if not self.test_mode:
+        
             bbox = input_dict['ann_info']['gt_bboxes_3d'].tensor
             bbox = torch.cat([bbox,torch.zeros((bbox.shape[0],2))],dim=-1)
             input_dict['ann_info']['gt_bboxes_3d'] = \
                 LiDARInstance3DBoxes(tensor=bbox,box_dim=bbox.shape[-1],
                 with_yaw=input_dict['ann_info']['gt_bboxes_3d'].with_yaw)
-
+            # For bev aug
+            input_dict['ann_infos'] = \
+                input_dict['ann_info']['gt_bboxes_3d'].tensor, \
+                input_dict['ann_info']['gt_labels_3d']
+                
         return input_dict
 
     def get_ann_info(self, index):

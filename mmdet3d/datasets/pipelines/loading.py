@@ -973,22 +973,40 @@ class PrepareImageInputs(object):
         results['cam_names'] = cam_names
         canvas = []
         sensor2sensors = []
+        # breakpoint()
         for cam_name in cam_names:
-            cam_data = results['curr']['cams'][cam_name]
-            filename = cam_data['data_path']
+            if 'curr' in results:
+                cam_data = results['curr']['cams'][cam_name]
+                filename = cam_data['data_path']
+                sensor2keyego, sensor2sensor = \
+                self.get_sensor2ego_transformation(results['curr'],
+                                                   results['curr'],
+                                                   cam_name,
+                                                   self.ego_cam)
+                rot = sensor2keyego[:3, :3]
+                tran = sensor2keyego[:3, 3]
+            else:
+                # For Kitti
+                cam_data = results['img_info'][cam_name]
+                filename = cam_data['data_path']
+                rot = torch.Tensor(cam_data['sensor2lidar_rotation'])
+                tran = torch.Tensor(cam_data['sensor2lidar_translation'])
+                sensor2sensor = torch.eye(4)
+                
             img = Image.open(filename)
             post_rot = torch.eye(2)
             post_tran = torch.zeros(2)
 
             intrin = torch.Tensor(cam_data['cam_intrinsic'])
 
-            sensor2keyego, sensor2sensor = \
-                self.get_sensor2ego_transformation(results['curr'],
-                                                   results['curr'],
-                                                   cam_name,
-                                                   self.ego_cam)
-            rot = sensor2keyego[:3, :3]
-            tran = sensor2keyego[:3, 3]
+            # sensor2keyego, sensor2sensor = \
+            #     self.get_sensor2ego_transformation(results['curr'],
+            #                                        results['curr'],
+            #                                        cam_name,
+            #                                        self.ego_cam)
+            # rot = sensor2keyego[:3, :3]
+            # tran = sensor2keyego[:3, 3]
+            
             # image view augmentation (resize, crop, horizontal flip, rotate)
             img_augs = self.sample_augmentation(
                 H=img.height, W=img.width, flip=flip, scale=scale)
