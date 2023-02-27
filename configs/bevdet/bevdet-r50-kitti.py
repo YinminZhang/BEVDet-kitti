@@ -6,7 +6,7 @@ _base_ = ['../_base_/default_runtime.py']
 # cloud range accordingly
 point_cloud_range = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 # For nuScenes we usually do 10-class detection
-class_names = ['car']
+class_names = ['Car']
 
 data_config = {
     'cams': [
@@ -68,7 +68,7 @@ model = dict(
         type='CenterHead',
         in_channels=256,
         tasks=[
-            dict(num_class=1, class_names=['car']),
+            dict(num_class=1, class_names=['Car']),
             # dict(num_class=1, class_names=['Pedestrian']),
             # dict(num_class=1, class_names=['Cyclist']),
 
