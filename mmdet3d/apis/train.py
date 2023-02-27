@@ -15,6 +15,7 @@ def train_model(model,
     Because we need different eval_hook in runner. Should be deprecated in the
     future.
     """
+    cfg.device='cuda' 
     if cfg.model.type in ['EncoderDecoder3D']:
         train_segmentor(
             model,
