@@ -8,7 +8,8 @@ _base_ = [
 # Global
 # If point cloud range is changed, the models should also change their point
 # cloud range accordingly
-point_cloud_range = [0, -40, -3, 70.4, 40, 1]
+# [-40, -40, -5.0, 70.4, 51.2, 3.0]
+point_cloud_range = [-40, -40, -5.0, 70.4, 51.2, 3.0]
 data_root = 'data/kitti/'
 input_modality = dict(use_lidar=False, use_camera=True)
 # For nuScenes we usually do 10-class detection
@@ -39,7 +40,7 @@ data_config = {
         # 'CAM_BACK', 'CAM_BACK_RIGHT'
     ],
     'Ncams': 1,
-    'input_size': (256, 704),
+    'input_size': (96, 320),
     # 'src_size': (900, 1600),
     'src_size': (384, 1280),
     
@@ -61,8 +62,9 @@ grid_config = {
 }
 
 voxel_size = [0.1, 0.1, 0.2]
+# voxel_size = [0.16, 0.16, 0.16]
 
-numC_Trans = 16
+numC_Trans = 80
 
 model = dict(
     type='BEVDet',
@@ -145,39 +147,44 @@ model = dict(
             min_radius=2,
             code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])),
     test_cfg=dict(
+            # # sassd
+            # use_rotate_nms=True,
+            # nms_across_levels=False,
+            # nms_thr=0.01,
+            # score_thr=0.1,
+            # min_bbox_size=0,
+            # nms_pre=100,
+            # max_num=50,
         pts=dict(
-            # sassd
-            use_rotate_nms=True,
-            nms_across_levels=False,
-            nms_thr=0.01,
-            score_thr=0.1,
-            
             pc_range=point_cloud_range[:2],
             post_center_limit_range=[-70.4, -70.4, -10.0, 70.4, 70.4, 10.0],
             max_per_img=500,
-            max_pool_nms=True,
+            max_pool_nms=False,
             min_radius=[4, 12, 10, 1, 0.85, 0.175],
             score_threshold=0.1,
             out_size_factor=8,
             voxel_size=voxel_size[:2],
             
             # sassd
-            pre_max_size=100,
-            post_max_size=50,
+            # pre_max_size=100,
+            # post_max_size=50,
+            pre_max_size=1000,
+            post_max_size=83,
 
             # Scale-NMS
             nms_type=[
-                'rotate', 'rotate', 'rotate', 'circle', 'rotate', 'rotate'
+                'rotate', 'rotate', 'rotate'
             ],
             nms_thr=[0.2, 0.2, 0.2],
+            # nms_thr=[0.3, 0.5, 0.7],
             nms_rescale_factor=[
-                1.0, [0.7, 0.7], [0.4, 0.55], 1.1, [1.0, 1.0], [4.5, 9.0]
+                1.0, [1.0, 1.0], [4.5, 9.0]
             ])))
 
 # Data
 dataset_type = 'KittiDataset'
 data_root = 'data/kitti/'
-file_client_args = dict(backend='disk')
+# file_client_args = dict(backend='disk')
 input_modality = dict(use_lidar=False, use_camera=True)
 
 bda_aug_conf = dict(
@@ -218,7 +225,7 @@ test_pipeline = [
     #     file_client_args=file_client_args),
     dict(
         type='MultiScaleFlipAug3D',
-        img_scale=(1333, 800),
+        img_scale=(1280, 384),
         pts_scale_ratio=1,
         flip=False,
         transforms=[
@@ -226,7 +233,7 @@ test_pipeline = [
                 type='DefaultFormatBundle3D',
                 class_names=class_names,
                 with_label=False),
-            dict(type='Collect3D', keys=['img_inputs'])
+            dict(type='Collect3D', keys=['img_inputs', 'gt_bboxes_3d', 'gt_labels_3d'])
         ])
 ]
 
@@ -243,7 +250,7 @@ share_data_config = dict(
     modality=input_modality,
     img_info_prototype='bevdet',
 )
-samples_per_gpu = 32
+samples_per_gpu = 16
 workers_per_gpu = 0
 test_data_config = dict(
     split='training',
@@ -274,8 +281,8 @@ for key in ['train', 'val', 'test']:
     data[key].update(share_data_config)
 
 # Optimizer
-optimizer = dict(type='AdamW', lr=2e-4, weight_decay=1e-07)
-optimizer_config = dict(grad_clip=dict(max_norm=5, norm_type=2))
+optimizer = dict(type='AdamW', lr=1e-3, weight_decay=1e-02)
+optimizer_config = dict(grad_clip=dict(max_norm=10, norm_type=2))
 lr_config = dict(
     policy='step',
     warmup='linear',
